@@ -5,14 +5,18 @@
 ## Packages
 - SteamKit2
 - Sharprompt
+- QRCoder
 
 ## App Input
 ### Input Prompts
+#### General
+**Sign-in methods** - Select between Credentials or QR Code
+<br/>
+**JSON File** - Input the path or file of a JSON file in the format below
+#### Sign-in (Credentials)
 **Steam username** - This is the one you use to sign into Steam (not your profile name)
 <br/>
 **Steam password** - Input your Steam password
-<br/>
-**JSON File** - Input the path or file of a JSON file in the format below
 
 If you have Steam Guard, you will be prompted to use the Steam Mobile App to confirm your sign in.
 
