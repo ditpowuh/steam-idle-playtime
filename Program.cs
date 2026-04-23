@@ -32,7 +32,11 @@ namespace SteamIdlePlaytime {
     static bool isRunning = true;
 
     static void Main(string[] args) {
-      selectedSigninMethod = Prompt.Select("Select your sign-in method", signinMethods);
+      selectedSigninMethod = Prompt.Select(new SelectOptions<string>{
+        Message = "Select your sign-in method",
+        Items = signinMethods,
+        DefaultValue = signinMethods[0]
+      });
 
       if (selectedSigninMethod == "Credentials") {
         username = Prompt.Input<string>("Steam username");
