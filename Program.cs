@@ -1,6 +1,7 @@
 using System;
 using System.Text.Json;
 using Sharprompt;
+using QRCoder;
 using SteamKit2;
 using SteamKit2.Internal;
 using SteamKit2.Authentication;
@@ -13,6 +14,13 @@ namespace SteamIdlePlaytime {
     static CallbackManager? manager;
     static SteamUser? steamUser;
 
+    static readonly string[] signinMethods = {
+      "Credentials",
+      "QR Code"
+    };
+
+    static string? selectedSigninMethod;
+
     static string? username;
     static string? password;
 
@@ -24,8 +32,12 @@ namespace SteamIdlePlaytime {
     static bool isRunning = true;
 
     static void Main(string[] args) {
-      username = Prompt.Input<string>("Steam username");
-      password = Prompt.Password("Steam password");
+      selectedSigninMethod = Prompt.Select("Select your sign-in method", signinMethods);
+
+      if (selectedSigninMethod == "Credentials") {
+        username = Prompt.Input<string>("Steam username");
+        password = Prompt.Password("Steam password");
+      }
 
       jsonFileName = Prompt.Input<string>("JSON file");
       if (!File.Exists(jsonFileName)) {
@@ -110,8 +122,8 @@ namespace SteamIdlePlaytime {
       }
     }
 
-    static async void OnConnected(SteamClient.ConnectedCallback callback) {
-      Console.WriteLine($"Connected to Steam! Logging in '{username}'...");
+    static async Task LoginViaCredentials() {
+      Console.WriteLine($"Logging in as '{username}' via credentials...");
       if (steamClient != null && steamUser != null) {
         CredentialsAuthSession authSession = await steamClient.Authentication.BeginAuthSessionViaCredentialsAsync(new AuthSessionDetails {
           Username = username,
@@ -125,6 +137,39 @@ namespace SteamIdlePlaytime {
           Username = pollResponse.AccountName,
           AccessToken = pollResponse.RefreshToken
         });
+      }
+    }
+
+    static async Task LoginViaQRCode() {
+      Console.WriteLine($"Preparing sign-in via QR code...");
+      if (steamClient != null && steamUser != null) {
+        QrAuthSession authSession = await steamClient.Authentication.BeginAuthSessionViaQRAsync(new AuthSessionDetails());
+
+        authSession.ChallengeURLChanged = () => {
+          Console.WriteLine("Steam has refreshed the challenge url.");
+          DrawQRCode(authSession);
+        };
+
+        DrawQRCode(authSession);
+
+        AuthPollResult pollResponse = await authSession.PollingWaitForResultAsync();
+
+        Console.WriteLine($"Logging in as '{pollResponse.AccountName}'...");
+
+        steamUser.LogOn(new SteamUser.LogOnDetails {
+          Username = pollResponse.AccountName,
+          AccessToken = pollResponse.RefreshToken
+        });
+      }
+    }
+
+    static async void OnConnected(SteamClient.ConnectedCallback callback) {
+      Console.WriteLine($"Connected to Steam!");
+      if (selectedSigninMethod == "Credentials") {
+        await LoginViaCredentials();
+      }
+      else if (selectedSigninMethod == "QR Code") {
+        await LoginViaQRCode();
       }
     }
 
@@ -159,6 +204,20 @@ namespace SteamIdlePlaytime {
         steamClient.Send(playGame);
       }
       Console.WriteLine($"Now simulating play status for AppID: {appID}");
+    }
+
+    static void DrawQRCode(QrAuthSession authSession) {
+      Console.WriteLine($"Challenge URL: {authSession.ChallengeURL}\n");
+
+      using (QRCodeGenerator qrGenerator = new QRCodeGenerator()) {
+        QRCodeData qrCodeData = qrGenerator.CreateQrCode(authSession.ChallengeURL, QRCodeGenerator.ECCLevel.L);
+        using (AsciiQRCode qrCode = new AsciiQRCode(qrCodeData)) {
+          string qrCodeAsAsciiArt = qrCode.GetGraphic(1, drawQuietZones: false);
+
+          Console.WriteLine("Use the Steam Mobile App to sign in via QR code:\n");
+          Console.WriteLine(qrCodeAsAsciiArt + "\n");
+        }
+      }
     }
 
     static void OnProcessExit(object? sender, EventArgs e) {
